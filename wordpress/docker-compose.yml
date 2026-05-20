@@ -1,0 +1,54 @@
+services:
+
+  db:
+    image: mariadb:10.11
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: changeMe
+      MARIADB_USER: changeMe
+      MARIADB_PASSWORD: notSecureChangeMe
+      MARIADB_DATABASE: changeMe
+    volumes:
+      - db_data:/var/lib/mysql        # persist data MariaDB
+    networks:
+      - database
+
+  webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.webserver
+    restart: always
+    ports:
+      - protocol: tcp
+        published: 80
+        target: 80
+    volumes:
+      - wp_data:/var/www/html         # named volume, dikelola Docker        # named volume, dikelola Docker
+    networks:
+      - database
+    depends_on:
+      - db
+
+  phpmyadmin:
+    image: phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: db
+      PMA_USER: changeMe
+      PMA_PASSWORD: notSecureChangeMe
+      PMA_PORT: 3306
+    ports:
+      - protocol: tcp
+        published: 8800
+        target: 80
+    networks:
+      - database
+
+networks:
+  database:
+    name: database
+    driver: bridge
+
+volumes:
+  wp_data:      # named volume untuk WordPress
+  db_data:      # named volume untuk MariaDB

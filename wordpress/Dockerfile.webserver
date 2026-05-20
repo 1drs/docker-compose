@@ -1,0 +1,40 @@
+FROM php:apache-bookworm
+
+# Install ekstensi PHP yang dibutuhkan WordPress
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+
+# Change repository address
+RUN sed -i 's|http://deb.debian.org|http://kartolo.sby.datautama.net.id|g' /etc/apt/sources.list.d/debian.sources
+
+# Install dependensi tambahan
+RUN apt-get update && apt-get install -y \
+    curl \
+    unzip \
+    libpng-dev \
+    libjpeg-dev \
+    libwebp-dev \
+    iputils-ping \
+    net-tools \
+  && docker-php-ext-configure gd --with-jpeg --with-webp \
+  && docker-php-ext-install gd \
+  && rm -rf /var/lib/apt/lists/*
+
+# Download & extract WordPress langsung ke DocumentRoot
+#RUN curl -L https://wordpress.org/latest.tar.gz \
+#  | tar -xz --strip-components=1 -C /var/www/html
+
+RUN curl -L https://wordpress.org/wordpress-6.9.4.tar.gz \
+  | tar -xz --strip-components=1 -C /var/www/html
+
+# Fix ownership agar Apache bisa write
+RUN chown -R www-data:www-data /var/www/html
+
+# Copy vhost config
+COPY vhost.conf /etc/apache2/sites-available/wordpress.conf
+
+# Enable site & modul yang diperlukan
+RUN a2ensite wordpress.conf \
+  && a2dissite 000-default.conf \
+  && a2enmod rewrite
+
+EXPOSE 80

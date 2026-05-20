@@ -1,0 +1,54 @@
+services:
+
+  db:
+    image: mysql:8.0
+    restart: always
+    ports:
+      - protocol: tcp
+        published: 3306
+        target: 3306
+    environment:
+      MYSQL_ROOT_PASSWORD: changeMe
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ghostPassword
+      MYSQL_DATABASE: ghostdb
+    volumes:
+      - ghost_db:/var/lib/mysql
+    networks:
+      - ghost_network
+
+  ghost:
+    build:
+      context: .
+      dockerfile: Dockerfile.ghost
+    restart: always
+    ports:
+      - protocol: tcp
+        published: 80
+        target: 2368
+    environment:
+      NODE_ENV: production
+      url: http://localhost
+      server__host: 0.0.0.0
+      server__port: 2368
+      database__client: mysql
+      database__connection__host: db
+      database__connection__user: ghost
+      database__connection__password: ghostPassword
+      database__connection__database: ghostdb
+      mail__transport: Direct
+    volumes:
+      - ghost_content:/var/lib/ghost/content
+    networks:
+      - ghost_network
+    depends_on:
+      - db
+
+networks:
+  ghost_network:
+    name: ghost_network
+    driver: bridge
+
+volumes:
+  ghost_db:
+  ghost_content:

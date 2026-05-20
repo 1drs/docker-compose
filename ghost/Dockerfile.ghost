@@ -1,0 +1,39 @@
+FROM node:22-alpine3.22
+
+# Install system dependencies required by Ghost and its native modules
+RUN apk add --no-cache \
+    curl \
+    bash \
+    su-exec \
+    python3 \
+    make \
+    g++ \
+    vips-dev \
+    libc6-compat
+
+# Install Ghost CLI globally — used to install and manage Ghost
+RUN npm install -g ghost-cli@latest
+
+# Create a non-root user and set up the Ghost installation directory
+RUN addgroup -S ghost && adduser -S ghost -G ghost \
+  && mkdir -p /var/lib/ghost \
+  && chown ghost:ghost /var/lib/ghost
+
+WORKDIR /var/lib/ghost
+
+# Install Ghost 6.39.0 via Ghost CLI as the ghost user
+# --no-prompt   : skip interactive prompts
+# --no-setup    : skip database/nginx/systemd setup (handled by Docker)
+# --no-start    : do not start Ghost after install (entrypoint handles this)
+RUN su-exec ghost ghost install 6.39.0 \
+      --dir /var/lib/ghost \
+      --no-prompt \
+      --no-setup \
+      --no-start
+
+EXPOSE 2368
+
+COPY ghost-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

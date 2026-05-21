@@ -4,10 +4,13 @@ A self-hosted [Ghost](https://ghost.org/) blogging platform running on Docker, u
 
 ## Stack
 
-| Service | Image | Port |
-|---------|-------|------|
-| Ghost | Custom (`node:22-alpine3.22`) | `80` → `2368` |
-| MySQL | `mysql:8.0` | `3306` (internal) |
+| Service | Image | Port | Description |
+|---------|-------|------|-------------|
+| **Ghost** | Custom (`node:22-alpine3.22`) | `80` → `2368` | Main blogging platform |
+| **MySQL** | `mysql:8.0` | `3306` (exposed) | Database backend |
+
+> [!WARNING]
+> By default, the database port `3306` is published in `docker-compose.yml`. For production or secure environments, it is highly recommended to comment out or remove the `ports` mapping under the `db` service to keep it internal to the Docker network.
 
 ## Project Structure
 
@@ -29,27 +32,40 @@ A self-hosted [Ghost](https://ghost.org/) blogging platform running on Docker, u
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url>
-cd <repo-directory>
+git clone git@github.com:1drs/docker-compose.git
+cd docker-compose/ghost
 ```
 
 ### 2. Configure environment variables
 
-Edit `docker-compose.yml` and update the following values:
+Edit the `docker-compose.yml` file to configure credentials and URL settings.
+
+> [!IMPORTANT]
+> The database credentials under both `db` and `ghost` services **must match**. If you change the username, password, or database name in the `db` service, you must update the corresponding variables in the `ghost` service.
+
+Update the following keys in `docker-compose.yml`:
 
 ```yaml
-# MySQL
-MYSQL_ROOT_PASSWORD: changeMe
-MYSQL_USER: ghost
-MYSQL_PASSWORD: ghostPassword
-MYSQL_DATABASE: ghostdb
+services:
+  db:
+    # ...
+    environment:
+      MYSQL_ROOT_PASSWORD: changeMe        # Root password for MySQL administrative access
+      MYSQL_USER: ghost                   # Ghost database user
+      MYSQL_PASSWORD: ghostPassword       # Ghost database password (must match database__connection__password)
+      MYSQL_DATABASE: ghostdb             # Ghost database name (must match database__connection__database)
 
-# Ghost
-url: http://<your-server-ip-or-domain>
-database__connection__password: ghostPassword
+  ghost:
+    # ...
+    environment:
+      url: http://<your-server-ip-or-domain>   # The external URL used to access Ghost
+      database__connection__user: ghost        # Must match MYSQL_USER
+      database__connection__password: ghostPassword # Must match MYSQL_PASSWORD
+      database__connection__database: ghostdb  # Must match MYSQL_DATABASE
 ```
 
-> **Important:** The `url` value must match the address you use to access Ghost from the browser. Ghost will reject requests from mismatched hosts in production mode.
+> [!NOTE]
+> The `url` value must match the exact address you use to access Ghost in your browser (including protocol and port if not 80). Ghost will reject requests from mismatched hosts in production mode.
 
 ### 3. Build and start
 
@@ -61,8 +77,8 @@ docker compose up -d --build
 
 | Page | URL |
 |------|-----|
-| Blog | `http://<your-ip>/` |
-| Admin panel | `http://<your-ip>/ghost` |
+| **Blog** | `http://<your-ip>/` |
+| **Admin Panel** | `http://<your-ip>/ghost` |
 
 ## Configuration Notes
 
@@ -82,13 +98,19 @@ The Ghost GitHub repository is a **monorepo** managed with `pnpm` workspaces and
 
 Named Docker volumes are used to persist data across container restarts:
 
-| Volume | Purpose |
-|--------|---------|
-| `ghost_content` | Ghost content files (images, themes, data) |
-| `ghost_db` | MySQL database files |
+| Volume | Purpose | Mount Path in Container |
+|--------|---------|-------------------------|
+| `ghost_content` | Ghost content files (images, themes, data) | `/var/lib/ghost/content` |
+| `ghost_db` | MySQL database files | `/var/lib/mysql` |
 
-To back up Ghost content:
+---
 
+## Backup and Restore
+
+### 1. Backing up data
+
+#### Ghost Content (Themes, Images, Uploads)
+Run a temporary container to archive the `ghost_content` volume:
 ```bash
 docker run --rm \
   -v ghost_content:/data \
@@ -96,36 +118,68 @@ docker run --rm \
   alpine tar czf /backup/ghost-content-backup.tar.gz -C /data .
 ```
 
-## Stopping and Removing
-
+#### MySQL Database
+Dump the database to a `.sql` file using `mysqldump`:
 ```bash
-# Stop containers
-docker compose down
-
-# Stop and remove volumes (destructive)
-docker compose down -v
+docker compose exec -T db mysqldump -u ghost -pghostPassword ghostdb > db-backup.sql
 ```
+*(Replace `ghost`, `ghostPassword`, and `ghostdb` if you modified them in `docker-compose.yml`.)*
+
+### 2. Restoring data
+
+#### Ghost Content
+Extract the archive back into the `ghost_content` volume:
+```bash
+docker run --rm \
+  -v ghost_content:/data \
+  -v $(pwd):/backup \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/ghost-content-backup.tar.gz -C /data"
+```
+
+#### MySQL Database
+Restore the SQL schema and data back to the database:
+```bash
+docker compose exec -T db mysql -u ghost -pghostPassword ghostdb < db-backup.sql
+```
+
+---
+
+## Production & Reverse Proxy Setup (SSL/HTTPS)
+
+For production environments, it is best practice to run Ghost behind a reverse proxy (like Nginx, Caddy, or Traefik) that handles SSL termination.
+
+When deploying behind an SSL-terminating reverse proxy:
+1. Update `url` in `docker-compose.yml` to use `https://`:
+   ```yaml
+   url: https://your-domain.com
+   ```
+2. Configure your reverse proxy to forward the standard headers:
+   ```nginx
+   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+   proxy_set_header X-Forwarded-Proto https;
+   proxy_set_header Host $http_host;
+   ```
+   *(Without the `X-Forwarded-Proto https` header, Ghost may run into infinite redirect loops.)*
+
+---
 
 ## Troubleshooting
 
 ### Ghost is running but the browser can't connect
-
 Check that `url` in `docker-compose.yml` matches the hostname/IP you are using to access the site. Ghost will reset connections from unrecognized hosts in production mode.
 
-### Port 80 is accessible but returns an empty reply
-
-Verify that Ghost is listening on `0.0.0.0` inside the container:
-
+### Verify that Ghost is listening on `0.0.0.0`
+Verify that Ghost is bound correctly inside the container:
 ```bash
-docker exec <container-id> netstat -tulpn | grep 2368
+docker compose exec ghost netstat -tulpn | grep 2368
 # Expected: tcp 0.0.0.0:2368 ...
 # Problem : tcp 127.0.0.1:2368 ... (missing server__host: 0.0.0.0)
 ```
 
-### View Ghost logs
-
+### View container logs
+View live logs to diagnose startup issues or runtime errors:
 ```bash
-docker logs <container-id> -f
+docker compose logs -f ghost
 ```
 
 ## License

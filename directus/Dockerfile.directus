@@ -1,0 +1,31 @@
+FROM fedora:43
+
+# Install Node.js 22, npm, and runtime dependencies
+RUN dnf install -y \
+    nodejs \
+    npm \
+    && dnf clean all
+
+# Install pnpm via corepack (required by Directus)
+RUN npm install -g pnpm
+
+# Create non-root user for Directus
+RUN useradd -r -s /bin/false -d /directus directus \
+  && mkdir -p /directus \
+  && chown directus:directus /directus
+
+WORKDIR /directus
+
+# Install Directus via npm (production install)
+RUN pnpm dlx directus@latest init . --no-prompt || \
+    npm install directus
+
+# Set ownership
+RUN chown -R directus:directus /directus
+
+COPY directus-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8055
+
+ENTRYPOINT ["/entrypoint.sh"]

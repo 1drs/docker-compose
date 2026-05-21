@@ -1,0 +1,70 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: directus
+      POSTGRES_PASSWORD: directusPassword
+      POSTGRES_DB: directusdb
+    volumes:
+      - directus_db:/var/lib/postgresql/data
+    networks:
+      - directus_net
+
+  cache:
+    image: redis:7-alpine
+    restart: always
+    networks:
+      - directus_net
+
+  directus:
+    build:
+      context: .
+      dockerfile: Dockerfile.directus
+    restart: always
+    ports:
+      - protocol: tcp
+        published: 80
+        target: 8055
+    environment:
+      # General
+      SECRET: change-this-to-a-random-secret-string
+      PUBLIC_URL: http://localhost:8055
+
+      # Database (PostgreSQL)
+      DB_CLIENT: pg
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: directusdb
+      DB_USER: directus
+      DB_PASSWORD: directusPassword
+
+      # Redis cache
+      CACHE_ENABLED: "true"
+      CACHE_STORE: redis
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+
+      # Admin account (first-run only)
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: adminPassword
+
+    volumes:
+      - directus_uploads:/directus/uploads
+      - directus_extensions:/directus/extensions
+    networks:
+      - directus_net
+    depends_on:
+      - db
+      - cache
+
+networks:
+  directus_net:
+    name: directus_net
+    driver: bridge
+
+volumes:
+  directus_db:
+  directus_uploads:
+  directus_extensions:

@@ -1,0 +1,24 @@
+services:
+
+  nocobase:
+    image: nocobase/nocobase:1.6.0
+    restart: always
+    ports:
+      - protocol: tcp
+        published: 80
+        target: 80
+    environment:
+      APP_KEY: change-this-to-a-random-secret-string
+      DB_DIALECT: sqlite
+    volumes:
+      - nocobase_storage:/app/nocobase/storage
+    networks:
+      - nocobase_net
+
+networks:
+  nocobase_net:
+    name: nocobase_net
+    driver: bridge
+
+volumes:
+  nocobase_storage:

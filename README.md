@@ -13,6 +13,7 @@ This repository contains multi-container Docker applications pre-configured and 
 | 🌐 **WordPress** | MariaDB 10.11 | — | Custom `php:apache-bookworm` | phpMyAdmin, `mod_rewrite` enabled | [View Setup](./wordpress) |
 | 👻 **Ghost** | MySQL 8.0 | — | Custom `node:22-alpine` | Ghost CLI pre-bundled, high performance | [View Setup](./ghost) |
 | 🗄️ **Directus** | PostgreSQL 16 | Redis 7 | Custom `fedora:43` | Node.js 22, DB migrations, Redis Caching | [View Setup](./directus) |
+| 🚀 **NocoBase** | SQLite | — | `nocobase/nocobase:1.6.0` | SQLite setup, private-first no-code platform | [View Setup](./nocobase) |
 
 ---
 
@@ -61,6 +62,9 @@ cd ghost
 
 # For Directus
 cd directus
+
+# For NocoBase
+cd nocobase
 ```
 
 ### 3. Review & Configure

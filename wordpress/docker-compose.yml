@@ -9,7 +9,7 @@ services:
       MARIADB_PASSWORD: notSecureChangeMe
       MARIADB_DATABASE: changeMe
     volumes:
-      - db_data:/var/lib/mysql        # persist data MariaDB
+      - db_data:/var/lib/mysql        # persist MariaDB data
     networks:
       - database
 
@@ -23,7 +23,7 @@ services:
         published: 80
         target: 80
     volumes:
-      - wp_data:/var/www/html         # named volume, dikelola Docker        # named volume, dikelola Docker
+      - wp_data:/var/www/html         # named volume, managed by Docker
     networks:
       - database
     depends_on:
@@ -50,5 +50,5 @@ networks:
     driver: bridge
 
 volumes:
-  wp_data:      # named volume untuk WordPress
-  db_data:      # named volume untuk MariaDB
+  wp_data:      # named volume for WordPress
+  db_data:      # named volume for MariaDB
